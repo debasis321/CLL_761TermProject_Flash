@@ -481,7 +481,7 @@ def heater_Q(feedStream:PENG_ROBINSON, dT, dP):
     dQ = (ps_h - fs_h) * fs_F # in J/hr
     print('##### Heater Duty Calculation:')
     print(f'Feed Stream: {fs_h} J/mol, Product Stream: {ps_h} J/mol')
-    print(f'Q: {Q} J/hr')
+    print(f'Q: {dQ} J/hr')
     print(f'Feed Stream Flowrate: {fs_F} mol/hr')
     print('#####')
     return dQ, ps
@@ -496,17 +496,20 @@ def heater_T(feedStream:PENG_ROBINSON, dQ, dP):
     ps.P = fs.P- dP
     ps_h = fs.h + dQ / fs.flowrate # get the new stream enthalpy
     # iteratefor T to match the enthalpy
-    dt = 0.1
-    while(abs(ps.h - ps_h)>10):
-        ps.T =fs.T + dt # initial guess for T
-        dh_dT = (ps.h - fs.h) / dt
-        ps.T = ps.T + dh_dT * 0.1
-        print(f'ps_h current:{ps.h}, ps_h target: {ps_h}')
+    def enthalpy_eq(T):
+        ps.T = T
+        ps_h_new = ps.h # get the new stream enthalpy
+        return ps_h_new - ps_h # return the difference
+    T_min, T_max = 273, 1000
+    brentq_solver = brentq(enthalpy_eq, T_min, T_max, xtol=1e-6) # solve for T using brentq method
+    print(brentq_solver)
 
     # calculate the duty required to heat the stream to the new temperature
     T = ps.T
 
-    print('#####')
+    print('##### Heater_T agains Q')
+    print(f'Inlet Temperature: {fs.T}')
+    print(f'Outlet Temperature: {ps.T}')
     return T, ps
 
 # Qh, ps = heater_Q(S1, 32, 0)
@@ -514,5 +517,5 @@ def heater_T(feedStream:PENG_ROBINSON, dQ, dP):
 # print(f'Product Stream Temperature:{ps.T} K, Pressure: {ps.P} Pa')
 # print(f'Product Stream Composition xi: {ps.x_i}, yi: {ps.y_i}, beta: {ps.vaporfraction}')
 T, ps = heater_T(S1, 1000, 0)
-print(T)
+
 
