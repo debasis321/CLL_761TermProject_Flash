@@ -19,6 +19,8 @@ from scipy.optimize import brentq
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import copy
+import inspect
 
 from Solver import Solver
 from Database import COMP_DB, R
@@ -30,8 +32,8 @@ from Database import COMP_DB, R
 # %%
 # Create Streaam Class
 # create a class for the stream
-class Stream:
-    def __init__(self, composition, temperature, pressure, flowrate):
+class Stream():
+    def __init__(self, *, composition=None, temperature=None, pressure=None, flowrate=None):
         self.components = list(composition.keys())
         self.mole_fractions = list(composition.values())
         self.temperature = temperature
@@ -61,7 +63,9 @@ class Stream:
 class EOS:
     def __init__(self):
         pass
-
+class UOP:
+    def __init__(self):
+        pass
 
 # %%
 # Class EOS for Peng-Robinson Equation of State
@@ -84,9 +88,11 @@ class PENG_ROBINSON (EOS):
         self.calc_parameters()
         # Phase composition: intialize with toatal mle raction then update with Flash calculation
         
-        self.x_i, self.y_i, self.K, self.vaporfraction = self.estimate_xi_yi_K_beta() # initial guess for liquid and vapor compositions
+        self.x_i, self.y_i, self.K, self.vf = self.estimate_xi_yi_K_beta() # initial guess for liquid and vapor compositions
         self.Z_l = None
         self.Z_v = None
+        self.phi_l = None
+        self.phi_v = None
 
         self.h_l = None
         self.h_v = None
@@ -95,8 +101,8 @@ class PENG_ROBINSON (EOS):
         self.adiabatic_flash()
         self.update_stream_enthalpy()
         # self.phase = self.phaseCheck(self.K)
-        # print(self.x_i, self.y_i, self.vaporfraction)
-        # self.x_i, self.y_i, self.vaporfraction = self.z_i, self.z_i, 0.5 # initial guess for liquid and vapor compositions
+        # print(self.x_i, self.y_i, self.vf)
+        # self.x_i, self.y_i, self.vf = self.z_i, self.z_i, 0.5 # initial guess for liquid and vapor compositions
         # number of components
         # run calc_parametrs on change of value of T,P, composition 
     
@@ -132,8 +138,15 @@ class PENG_ROBINSON (EOS):
         self.calc_parameters()
         self.adiabatic_flash()
         self.update_stream_enthalpy()    
+    
+    def print_basic(self):
+        print(f'### Post Flash Results for Stream:###')
+        print(f'T:, {round(self.T, 2)} K, P: {round(self.P, 2)} Pa') 
+        print(f'VF: {round(self.vf,2)}, xi: {np.round(self.x_i,2)}, yi: {np.round(self.y_i,2)}')
+        print(f'Z_l: {round(self.Z_l,4)}, Z_v: {round(self.Z_v,4)}, phi_l: {np.round(self.phi_l,2)}, phi_v: {np.round(self.phi_v,2)}')
+        print(f'h_l: {round(self.h_l,2)} J/mol, h_v: {round(self.h_v,2)} J/mol, h: {round(self.h,2)} J/mol')
+        print('###')
 
-   
     def load_critical_data(self):
         '''Loading of critical properties from data bank at imitialization'''
         compCriticalProp = self.compData["critical"].loc[self.components]
@@ -236,7 +249,7 @@ class PENG_ROBINSON (EOS):
 
         h_l = self.residual_enthalpy_mixture(self.x_i, self.Z_l) + self.ideal_enthalpy_mixture(self.x_i) if not np.all(self.x_i==0) else 0
         h_v = self.residual_enthalpy_mixture(self.y_i, self.Z_v) + self.ideal_enthalpy_mixture(self.y_i)if not np.all(self.y_i==0) else 0
-        h = h_v * self.vaporfraction + h_l * (1 - self.vaporfraction)
+        h = h_v * self.vf + h_l * (1 - self.vf)
         self.h_l = h_l
         self.h_v = h_v
         self.h = h
@@ -355,6 +368,8 @@ class PENG_ROBINSON (EOS):
         print('####')
         self.Z_l = Z_l
         self.Z_v = Z_v
+        self.phi_l = phi_l
+        self.phi_v = phi_v
         self.K = K
         
 
@@ -392,7 +407,7 @@ class PENG_ROBINSON (EOS):
         if self.phaseCheck() == "TWOPHASE":
             # Two phase flash 
             print("Two phase flash") 
-            beta  = self.vaporfraction # initial guess for beta
+            beta  = self.vf # initial guess for beta
             iter = 0
             error = 1
             beta_solver = self.solver.beta_solver
@@ -412,110 +427,131 @@ class PENG_ROBINSON (EOS):
                 x = x / np.sum(x)
                 y = y / np.sum(y)
                 # Calculate error
-                error = np.sum(np.abs(x - self.x_i))  + np.sum(np.abs(y - self.y_i)) + np.abs(beta - self.vaporfraction)
+                error = np.sum(np.abs(x - self.x_i))  + np.sum(np.abs(y - self.y_i)) + np.abs(beta - self.vf)
                 
                 # handeling cases for beta values
                 if beta <=0: # liquid only
                     self.x_i = self.z_i
                     self.y_i = np.zeros_like(self.z_i)
-                    self.vaporfraction = 0
-                    print(f'Two phase to Liquid Phase: iter:{iter} x:{self.x_i}, y:{self.y_i}, beta:{self.vaporfraction}, error:{error}')
+                    self.vf = 0
+                    print(f'Two phase to Liquid Phase: iter:{iter} x:{self.x_i}, y:{self.y_i}, beta:{self.vf}, error:{error}')
                     return
                 if beta >=1: # vapor only
                     self.x_i = np.zeros_like(self.z_i)
                     self.y_i = self.z_i
-                    self.vaporfraction = 1
-                    print(f'Two phase to Vapor Phase: iter:{iter} x:{self.x_i}, y:{self.y_i}, beta:{self.vaporfraction}, error:{error}')
+                    self.vf = 1
+                    print(f'Two phase to Vapor Phase: iter:{iter} x:{self.x_i}, y:{self.y_i}, beta:{self.vf}, error:{error}')
                     return
                 if beta >0 and beta <1: # two phase
                     self.x_i = x
                     self.y_i = y
-                    self.vaporfraction = beta
-                    print(f'two-phase flash iter:{iter} x:{self.x_i}, y:{self.y_i}, beta:{self.vaporfraction}, error:{error}')
+                    self.vf = beta
+                    print(f'two-phase flash iter:{iter} x:{self.x_i}, y:{self.y_i}, beta:{self.vf}, error:{error}')
                     iter += 1
 
         return
         
+class Q_Flash(UOP):
+    """
+    This class implements the non-adiabatic flash calculation for a given mixture.
+    It uses the Peng-Robinson equation of state to calculate the phase equilibrium.
+    """
 
-# %%
-# Component in Scope for the calculation
-scopeComponents = ['benzene', 'toluene']
-# scopeComponents = ['n-butane', 'n-pentane', 'n-hexane']
-# check if the component is in the database
-# print(COMP_DB["critical"].index.values)
-for comp in scopeComponents:
-    if comp not in COMP_DB["critical"].index.values:
-        # print(comp)
-        raise Exception(f"Component {comp} is not in the database")
+    def __init__(self, fs: PENG_ROBINSON, dT=None, dP=None, beta=None, dQ=None):
+        """"""
+        self.fs = fs # feed stream object
+        if dQ is None and dT is not None and dP is not None and beta is None:
+            # calculate dQ from dT and dP
+            return self.calc_dQ_on_dT_dP(dT, dP)
+        elif dT is None and dQ is not None and dP is not None and beta is None:
+            # calculate dT from dQ and dP
+            return self.calc_dT_on_dQ_dP(dQ, dP)
+        elif dT is None and dQ is None and dP is not None and beta is not None:
+            # calculate dQ from beta and dP
+            return self.calc_dQ_on_beta_dP(beta, dP)
+        elif dT is None and dQ is not None and dP is not None and beta is None:
+            # calculate beta from dQ and dP
+            return self.calc_beta_on_dQ_dP(dQ, dP)
+        elif dT is None and dQ is None and dP is not None and beta is not None:
+            # calculate beta from dT and dP
+            return self.calc_beta_on_dT_dP(dT, dP)
+        else:
+            raise ValueError("Invalid input parameters. Please provide proper combination of dQ, dT, and dP or beta.")
+
+
+
+    def calc_dQ_on_dT_dP(self, dT, dP):
+        """Calculate the heater duty."""
+        fs = copy.deepcopy(self.fs) # copy the stream object
+        
+        fs_h = fs.h # get feed total enthalpy. as it is a float(immutable) object, it will not change with the original stream object
+        fs_F = fs.flowrate # get the feed flowrate
+        # update the stream temperature and pressure
+        fs.P = fs.P - dP
+        fs.T = fs.T + dT
+        ps = fs
+        ps_h = ps.h # get the new stream enthalpy
+        # calculate the duty required to heat the stream to the new temperature
+        dQ = (ps_h - fs_h) * fs_F # in J/hr
+        print('##### calc_dQ_on_dT_dP:')
+        print(f'Feed Stream: {fs_h} J/mol, Product Stream: {ps_h} J/mol')
+        print(f'Q: {dQ} J/hr')
+        print(f'Feed Stream Flowrate: {fs_F} mol/hr')
+        print('#####')
+        return dQ, ps
+
+    def calc_dT_on_dQ_dP(self, dQ, dP):
+        """Calculate the heater duty."""
+        fs = copy.deepcopy(self.fs) # copy the stream object
+        ps = copy.deepcopy(self.fs) # copy the stream object
+
+        # update the stream temperature and pressure
+        ps.P = fs.P - dP
+        ps_h = fs.h + dQ / fs.flowrate # get the new stream enthalpy target
+        # iteratefor T to match the enthalpy
+        def enthalpy_gap(T):
+            ps.T = T
+            ps_h_new = ps.h # get the new stream enthalpy
+            return ps_h_new - ps_h # return the difference
+        
+        T_min, T_max = 273, 1000
+        brentq(enthalpy_gap, T_min, T_max, xtol=1e-6) # solve for T using brentq method
+        
+        dT = ps.T - fs.T
+        print('##### calc_dT_on_dQ_dP')
+        print(f'Inlet Temperature: {fs.T}')
+        print(f'Outlet Temperature: {ps.T}')
+        return dT, ps
+
+    def calc_dQ_on_beta_dP(self, beta, dP):
+        """Calculate the heater duty to meet a vapor fraction and pressure drop"""
+        fs = copy.deepcopy(self.fs)
+        ps = copy.deepcopy(self.fs)
+        ps.P = fs.P - dP
+
+        def beta_gap(T):
+            ps.T = T
+            return ps.vf - beta
+        
+        T_min, T_max = 273, 1000
+        brentq(beta_gap, T_min, T_max, xtol=1e-6) # solve for T using brentq method
+        
+        dQ = (ps.h - fs.h) * fs.flowrate # in J/hr
+        print('##### calc_dQ_on_beta_dP')
+        print(f'Inlet Temperature: {fs.T}')
+        print(f'Outlet Temperature: {ps.T}')
+        return dQ, ps
     
-# set feed composition (mol fraction)
-# feedComp = {scopeComponents[0]: 0.5, 
-#             scopeComponents[1]: 0.2,
-#             scopeComponents[2]: 0.3}
-feedComp = {scopeComponents[0]: 1,
-            scopeComponents[1]: 0}
-# check if the sum of composition is 1
-if sum(feedComp.values()) != 1:
-    raise Exception(f"Composition sum is not equal to 1: {sum(feedComp.values())}")
+    def calc_beta_on_dQ_dP(self, dQ, dP):
+        """Calculate the vapor fraction for a given pressure drop and heater duty."""
+        ps = self.calc_dT_on_dQ_dP(dQ, dP)[1] # get the product stream object
+        
+        return ps.vf, ps
 
+    def calc_beta_on_dT_dP(self, dT, dP):
+        """Calculate the vapor fraction for a given pressure drop and heater duty."""
+        ps = self.calc_dQ_on_dT_dP(dT, dP)[1]
+        return ps.vf, ps
 
-# create a stream object
-feedStream = Stream(composition=feedComp, temperature=273+50, pressure=101325 * 1 , flowrate=1)
-
-# Initialize the PENG_ROBINSON object
-S1 = PENG_ROBINSON(feedStream)
-# print(eos.whichPhase())
-def heater_Q(feedStream:PENG_ROBINSON, dT, dP):
-    """Calculate the heater duty."""
-    import copy
-    fs = copy.deepcopy(feedStream) # copy the stream object
-    
-    fs_h = fs.h # get feed total enthalpy. as it is a float(immutable) object, it will not change with the original stream object
-    fs_F = fs.flowrate # get the feed flowrate
-    # update the stream temperature and pressure
-    fs.P = fs.P - dP
-    fs.T = fs.T + dT
-    ps = fs
-    ps_h = ps.h # get the new stream enthalpy
-    # calculate the duty required to heat the stream to the new temperature
-    dQ = (ps_h - fs_h) * fs_F # in J/hr
-    print('##### Heater Duty Calculation:')
-    print(f'Feed Stream: {fs_h} J/mol, Product Stream: {ps_h} J/mol')
-    print(f'Q: {dQ} J/hr')
-    print(f'Feed Stream Flowrate: {fs_F} mol/hr')
-    print('#####')
-    return dQ, ps
-
-def heater_T(feedStream:PENG_ROBINSON, dQ, dP):
-    """Calculate the heater duty."""
-    import copy
-    fs = copy.deepcopy(feedStream) # copy the stream object
-    ps = copy.deepcopy(fs)
-
-    # update the stream temperature and pressure
-    ps.P = fs.P- dP
-    ps_h = fs.h + dQ / fs.flowrate # get the new stream enthalpy
-    # iteratefor T to match the enthalpy
-    def enthalpy_eq(T):
-        ps.T = T
-        ps_h_new = ps.h # get the new stream enthalpy
-        return ps_h_new - ps_h # return the difference
-    T_min, T_max = 273, 1000
-    brentq_solver = brentq(enthalpy_eq, T_min, T_max, xtol=1e-6) # solve for T using brentq method
-    print(brentq_solver)
-
-    # calculate the duty required to heat the stream to the new temperature
-    T = ps.T
-
-    print('##### Heater_T agains Q')
-    print(f'Inlet Temperature: {fs.T}')
-    print(f'Outlet Temperature: {ps.T}')
-    return T, ps
-
-# Qh, ps = heater_Q(S1, 32, 0)
-# print(Qh)
-# print(f'Product Stream Temperature:{ps.T} K, Pressure: {ps.P} Pa')
-# print(f'Product Stream Composition xi: {ps.x_i}, yi: {ps.y_i}, beta: {ps.vaporfraction}')
-T, ps = heater_T(S1, 1000, 0)
 
 

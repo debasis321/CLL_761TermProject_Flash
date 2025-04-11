@@ -9,7 +9,7 @@ COMP_DB = {"critical": pd.DataFrame(), "kij": pd.DataFrame(), "Cp_ideal": pd.Dat
 COMP_DB["critical"] = pd.read_excel(excelPath, sheet_name="criticalProp")
 COMP_DB["critical"].head()
 
-# %%
+
 # fix cpmpound name and Column name
 COMP_DB["critical"].rename(columns={"CompName": "component"}, inplace=True)
 # make it as index
@@ -36,7 +36,6 @@ COMP_DB["critical"].rename(columns={"MW": "mw"}, inplace=True)
 COMP_DB["critical"].head()
 
 
-# %%
 # load the binary ineteraction parameters
 COMP_DB['kij'] = pd.read_excel(excelPath, sheet_name="kij")
 # make all column and index as lower case
@@ -48,7 +47,6 @@ COMP_DB['kij'].index = COMP_DB['kij'].index.str.lower()
 
 COMP_DB['kij'].head()
 
-# %%
 # load the ideal gas heat capacity data
 COMP_DB['Cp_ideal'] = pd.read_excel(excelPath, sheet_name="Cp_ideal")
 # make all column and index as lower case
@@ -57,8 +55,28 @@ COMP_DB['Cp_ideal'].columns = COMP_DB['Cp_ideal'].columns.str.lower()
 COMP_DB['Cp_ideal'].set_index('component', inplace=True)
 # make row names as lower case
 COMP_DB['Cp_ideal'].index = COMP_DB['Cp_ideal'].index.str.lower()
-print(COMP_DB['Cp_ideal'].head())
+# print(COMP_DB['Cp_ideal'].head())
 
-# %%
 # Constants for Peng-Robinson EOS
 R = 8.314  # J/(mol*K)
+
+# sanity checking
+def check_sanity(comp):
+    """
+    Check the sanity of the stream composition
+    """
+    compName = tuple(comp.keys())
+    # Check if all components in the stream are in the database
+    if not all(item in COMP_DB["critical"].index for item in compName):
+        raise ValueError("Some components are not in CRITICAL database.")
+    if not all(item in COMP_DB["kij"].index for item in compName):
+        raise ValueError("Some components are not in kij database.")
+    if not all(item in COMP_DB["Cp_ideal"].index for item in compName):
+        raise ValueError("Some components are not in Cp_ideal database.")
+    
+    # Check if the sum of the composition is 1
+    if not np.isclose(sum(comp.values()), 1):
+        raise ValueError("The sum of the composition is not equal to 1.")
+
+    
+    print("Sanity check completed successfully.")
