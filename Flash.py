@@ -33,7 +33,34 @@ from Database import COMP_DB, R
 # Create Streaam Class
 # create a class for the stream
 class Stream():
-    def __init__(self, *, composition=None, temperature=None, pressure=None, flowrate=None):
+    """
+    A class to represent a chemical stream with its properties.
+    Attributes:
+    ----------
+    name : str
+        The name of the stream.
+    composition : dict, optional
+        A dictionary containing the components as keys and their mole fractions as values.
+    temperature : float, optional
+        The temperature of the stream in Kelvin.
+    pressure : float, optional
+        The pressure of the stream in Pascals.
+    flowrate : float, optional
+        The flowrate of the stream.
+    Methods:
+    -------
+    get_mole_fraction():
+        Returns the mole fractions of the components in the stream.
+    get_temperature():
+        Returns the temperature of the stream.
+    get_pressure():
+        Returns the pressure of the stream.
+    get_flowrate():
+        Returns the flowrate of the stream.
+
+    """
+    def __init__(self, name=None, composition=None, temperature=None, pressure=None, flowrate=None):
+        self.name = name
         self.components = list(composition.keys())
         self.mole_fractions = list(composition.values())
         self.temperature = temperature
@@ -53,7 +80,7 @@ class Stream():
         return self.flowrate
     
 
-
+    
 # %%
 # Create  a Stream object
 # stream1 = Stream(composition={"benzene": 0.2, "toluene": 0.3, "xylene": 0.5}, temperature=350, pressure=101325, flowrate=1000)
@@ -139,13 +166,7 @@ class PENG_ROBINSON (EOS):
         self.adiabatic_flash()
         self.update_stream_enthalpy()    
     
-    def print_basic(self):
-        print(f'### Post Flash Results for Stream:###')
-        print(f'T:, {round(self.T, 2)} K, P: {round(self.P, 2)} Pa') 
-        print(f'VF: {round(self.vf,2)}, xi: {np.round(self.x_i,2)}, yi: {np.round(self.y_i,2)}')
-        print(f'Z_l: {round(self.Z_l,4)}, Z_v: {round(self.Z_v,4)}, phi_l: {np.round(self.phi_l,2)}, phi_v: {np.round(self.phi_v,2)}')
-        print(f'h_l: {round(self.h_l,2)} J/mol, h_v: {round(self.h_v,2)} J/mol, h: {round(self.h,2)} J/mol')
-        print('###')
+
 
     def load_critical_data(self):
         '''Loading of critical properties from data bank at imitialization'''
@@ -184,6 +205,16 @@ class PENG_ROBINSON (EOS):
         print(f'Temperature: {self.T}, Pressure: {self.P}')
         print(f'Tr: {self.tr}, alpha: {self.alpha}, a: {self.a}, b: {self.b}')
         print('#####')
+    
+    def basic_info(self):
+        '''print Basic data of a stream'''
+        print(f'### Post Flash Results for Stream:{self.stream.name} ###')
+        print(f'T:, {round(self.T, 2)} K, P: {round(self.P, 2)} Pa') 
+        print(f'VF: {round(self.vf,2)}, xi: {np.round(self.x_i,2)}, yi: {np.round(self.y_i,2)}')
+        print(f'Z_l: {round(self.Z_l,4)}, Z_v: {round(self.Z_v,4)}, phi_l: {np.round(self.phi_l,2)}, phi_v: {np.round(self.phi_v,2)}')
+        print(f'h_l: {round(self.h_l,2)} J/mol, h_v: {round(self.h_v,2)} J/mol, h: {round(self.h,2)} J/mol')
+        print('###')
+
 
     def residual_enthalpy_mixture(self, x_y, Z):
         """Calculate residual enthalpy for the mixture.
@@ -223,7 +254,8 @@ class PENG_ROBINSON (EOS):
         # Residual enthalpy [J/mol]
         term1 = (Z - 1) * R * T
         B = b_mix * P / (R * T)
-        term2 = ((T * da_mix_dT - a_mix) / (2 * np.sqrt(2) * b_mix)) * np.log((Z + (1 + np.sqrt(2)) * B) / (Z + (1 - np.sqrt(2)) * B))
+        eps = 0
+        term2 = ((T * da_mix_dT - a_mix) / (2 * np.sqrt(2) * b_mix + eps)) * np.log((Z + (1 + np.sqrt(2)) * B+ eps) / (Z + (1 - np.sqrt(2)) * B + eps))
         H_res = term1 + term2 
         print('##### Residual Enthalpy Calculation:')
         print(f'Term1: {term1}, Term2: {term2}')
@@ -322,7 +354,7 @@ class PENG_ROBINSON (EOS):
 
     def calc_fugacity_coeff(self, Z, x_or_y, A, B, a_mix, b_mix):
         """Calculate fugacity coefficient φ for each component in given phase composition x_or_y."""
-        eps = 1e-10  # Small positive value to avoid division by zero or log of non-positive values
+        eps = 0  # Small positive value to avoid division by zero or log of non-positive values
         sqrt2 = np.sqrt(2)
         n = len(x_or_y)
         phi = np.zeros(n)
@@ -389,35 +421,45 @@ class PENG_ROBINSON (EOS):
             return "TWOPHASE"    
     
     def adiabatic_flash(self):      
-        
-        self.update_K()
+        self.x_i, self.y_i, self.K, self.vf = self.estimate_xi_yi_K_beta()
+        # self.update_K()
 
-        if self.phaseCheck() == "LIQUID":
-            print("Single phase: Liquid")
-            self.x_i = self.z_i
-            self.y_i = np.zeros_like(self.z_i)
-            return
+        # if self.phaseCheck() == "LIQUID":
+        #     print("Single phase: Liquid")
+        #     self.x_i = self.z_i
+        #     self.y_i = np.zeros_like(self.z_i)
+        #     return
         
-        if self.phaseCheck() == "VAPOR":
-            print("Single phase: Vapor")
-            self.x_i = np.zeros_like(self.z_i)
-            self.y_i = self.z_i
-            return
+        # if self.phaseCheck() == "VAPOR":
+        #     print("Single phase: Vapor")
+        #     self.x_i = np.zeros_like(self.z_i)
+        #     self.y_i = self.z_i
+        #     return
         
-        if self.phaseCheck() == "TWOPHASE":
-            # Two phase flash 
-            print("Two phase flash") 
-            beta  = self.vf # initial guess for beta
-            iter = 0
-            error = 1
-            beta_solver = self.solver.beta_solver
+        # if self.phaseCheck() == "TWOPHASE":
+        #     # Two phase flash 
+        #     print("Two phase flash") 
+        beta  = self.vf # initial guess for beta
+        iter = 0
+        error = 1
+        beta_solver = self.solver.beta_solver
 
-            while (error > 1e-6) and (iter < 100):  
-                self.update_K()
-                if not self.phaseCheck() == "TWOPHASE":  # K based checking
-                    print("Phase changed to single phase(K based), exiting loop.") 
-                    self.adiabatic_flash()
-                    break
+        while (error > 1e-6) and (iter < 100):  
+            self.update_K()
+            if self.phaseCheck() == "LIQUID":
+                print("Single phase: Liquid")
+                self.x_i = self.z_i
+                self.y_i = np.zeros_like(self.z_i)
+                self.vf = 0
+                break
+            if self.phaseCheck() == "VAPOR":
+                print("Single phase: Vapor")
+                self.x_i = np.zeros_like(self.z_i)
+                self.y_i = self.z_i
+                self.vf = 1
+                break
+            if self.phaseCheck() == "TWOPHASE":
+                print("Two phase flash") 
                 z = self.z_i
                 K = self.K
                 beta = beta_solver(z=z, K=K, tol=1e-8, max_iter=100)
@@ -429,25 +471,26 @@ class PENG_ROBINSON (EOS):
                 # Calculate error
                 error = np.sum(np.abs(x - self.x_i))  + np.sum(np.abs(y - self.y_i)) + np.abs(beta - self.vf)
                 
-                # handeling cases for beta values
+                # cases for beta values
                 if beta <=0: # liquid only
                     self.x_i = self.z_i
                     self.y_i = np.zeros_like(self.z_i)
                     self.vf = 0
                     print(f'Two phase to Liquid Phase: iter:{iter} x:{self.x_i}, y:{self.y_i}, beta:{self.vf}, error:{error}')
-                    return
+                    break
                 if beta >=1: # vapor only
                     self.x_i = np.zeros_like(self.z_i)
                     self.y_i = self.z_i
                     self.vf = 1
                     print(f'Two phase to Vapor Phase: iter:{iter} x:{self.x_i}, y:{self.y_i}, beta:{self.vf}, error:{error}')
-                    return
+                    break
                 if beta >0 and beta <1: # two phase
                     self.x_i = x
                     self.y_i = y
                     self.vf = beta
                     print(f'two-phase flash iter:{iter} x:{self.x_i}, y:{self.y_i}, beta:{self.vf}, error:{error}')
                     iter += 1
+                    continue
 
         return
         
@@ -486,7 +529,21 @@ class Q_Flash(UOP):
             raise ValueError("Invalid input parameters. Please provide proper combination of dQ, dT, and dP or beta.")
             
 
+    def bubble_dew_temp_approx(self):
+        P=self.fs.P
+        x=self.fs.x_i
+        Tc=self.fs.tc
+        Pc=self.fs.pc
+        omega=self.fs.omega
 
+        A = 5.37 * (1 + omega)
+        num = np.sum(x * Tc * A)
+        denom_bubble = np.sum(x * (np.log(Pc / P) + A))
+        denom_dew = np.sum(x * (np.log(Pc / P) + A))
+        T_bubble = num / denom_bubble
+        T_dew = num / denom_dew
+        
+        return T_bubble, T_dew
 
     def calc_on_dT_dP(self, dT, dP):
         """Calculate the heater duty."""
@@ -530,20 +587,19 @@ class Q_Flash(UOP):
 
     def calc_on_beta_dP(self, beta, dP):
         """Calculate the heater duty to meet a vapor fraction and pressure drop"""
-        fs = copy.deepcopy(self.fs)
-        ps = copy.deepcopy(self.fs)
+        fs = copy.copy(self.fs)
+        ps = copy.copy(self.fs)
         ps.P = fs.P - dP
 
         def beta_gap(T):
             ps.T = T
-            return abs(ps.vf - beta)
+            return ps.vf - beta
         
-        T_min, T_max = 100, 273+400
+        # T_min, T_max = self.bubble_dew_temp_approx()
+        T_min, T_max = 350, 450
         T_guess = 300
-        # brentq(beta_gap, T_min, T_max, xtol=1e-6) # solve for T using brentq method
+        brentq(beta_gap, T_min, T_max, xtol=1e-6) # solve for T using brentq method
         # res = minimize(beta_gap, x0=T_guess, method='BFGS')
-
-        T_solution = res.x[0]
         # print('##### calc_dQ_on_beta_dP')
         # print(f'Inlet Temperature: {fs.T}')
         # print(f'Outlet Temperature: {ps.T}')
