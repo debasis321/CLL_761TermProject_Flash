@@ -460,27 +460,35 @@ class Q_Flash(UOP):
     def __init__(self, fs: PENG_ROBINSON, dT=None, dP=None, beta=None, dQ=None):
         """"""
         self.fs = fs # feed stream object
-        if dQ is None and dT is not None and dP is not None and beta is None:
+        self.ps = None # product stream object
+
+        if dT is not None and dP is not None :
             # calculate dQ from dT and dP
-            return self.calc_dQ_on_dT_dP(dT, dP)
-        elif dT is None and dQ is not None and dP is not None and beta is None:
-            # calculate dT from dQ and dP
-            return self.calc_dT_on_dQ_dP(dQ, dP)
-        elif dT is None and dQ is None and dP is not None and beta is not None:
+            self.ps = self.calc_on_dT_dP(dT, dP)
+        elif dP is not None and beta is not None:
             # calculate dQ from beta and dP
-            return self.calc_dQ_on_beta_dP(beta, dP)
-        elif dT is None and dQ is not None and dP is not None and beta is None:
-            # calculate beta from dQ and dP
-            return self.calc_beta_on_dQ_dP(dQ, dP)
-        elif dT is None and dQ is None and dP is not None and beta is not None:
-            # calculate beta from dT and dP
-            return self.calc_beta_on_dT_dP(dT, dP)
+            self.ps = self.calc_on_beta_dP(beta, dP)
+        elif dT is not None and beta is not None:
+            # calculate dQ from beta and dP
+            self.ps = self.calc_on_beta_dT(beta, dT)
+
+        elif dQ is not None and dP is not None:
+            # calculate dT from dQ and dP
+            self.ps = self.calc_on_dQ_dP(dQ, dP)
+        elif dQ is not None and dT is not None:
+            # calculate dT from dQ and dP
+            self.ps = self.calc_on_dQ_dT(dQ, dT)
+        elif dQ is not None and beta is not None:
+            # calculate dT from dQ and beeta
+            self.ps = self.calc_on_dQ_beta(beta, dQ)
+
         else:
             raise ValueError("Invalid input parameters. Please provide proper combination of dQ, dT, and dP or beta.")
+            
 
 
 
-    def calc_dQ_on_dT_dP(self, dT, dP):
+    def calc_on_dT_dP(self, dT, dP):
         """Calculate the heater duty."""
         fs = copy.deepcopy(self.fs) # copy the stream object
         
@@ -490,17 +498,14 @@ class Q_Flash(UOP):
         fs.P = fs.P - dP
         fs.T = fs.T + dT
         ps = fs
-        ps_h = ps.h # get the new stream enthalpy
-        # calculate the duty required to heat the stream to the new temperature
-        dQ = (ps_h - fs_h) * fs_F # in J/hr
-        print('##### calc_dQ_on_dT_dP:')
-        print(f'Feed Stream: {fs_h} J/mol, Product Stream: {ps_h} J/mol')
-        print(f'Q: {dQ} J/hr')
-        print(f'Feed Stream Flowrate: {fs_F} mol/hr')
-        print('#####')
-        return dQ, ps
+        # print('##### calc_dQ_on_dT_dP:')
+        # print(f'Feed Stream: {fs_h} J/mol, Product Stream: {ps_h} J/mol')
+        # print(f'Q: {dQ} J/hr')
+        # print(f'Feed Stream Flowrate: {fs_F} mol/hr')
+        # print('#####')
+        return ps
 
-    def calc_dT_on_dQ_dP(self, dQ, dP):
+    def calc_on_dQ_dP(self, dQ, dP):
         """Calculate the heater duty."""
         fs = copy.deepcopy(self.fs) # copy the stream object
         ps = copy.deepcopy(self.fs) # copy the stream object
@@ -518,12 +523,12 @@ class Q_Flash(UOP):
         brentq(enthalpy_gap, T_min, T_max, xtol=1e-6) # solve for T using brentq method
         
         dT = ps.T - fs.T
-        print('##### calc_dT_on_dQ_dP')
-        print(f'Inlet Temperature: {fs.T}')
-        print(f'Outlet Temperature: {ps.T}')
-        return dT, ps
+        # print('##### calc_dT_on_dQ_dP')
+        # print(f'Inlet Temperature: {fs.T}')
+        # print(f'Outlet Temperature: {ps.T}')
+        return ps
 
-    def calc_dQ_on_beta_dP(self, beta, dP):
+    def calc_on_beta_dP(self, beta, dP):
         """Calculate the heater duty to meet a vapor fraction and pressure drop"""
         fs = copy.deepcopy(self.fs)
         ps = copy.deepcopy(self.fs)
@@ -531,27 +536,66 @@ class Q_Flash(UOP):
 
         def beta_gap(T):
             ps.T = T
+            return abs(ps.vf - beta)
+        
+        T_min, T_max = 100, 273+400
+        T_guess = 300
+        # brentq(beta_gap, T_min, T_max, xtol=1e-6) # solve for T using brentq method
+        # res = minimize(beta_gap, x0=T_guess, method='BFGS')
+
+        T_solution = res.x[0]
+        # print('##### calc_dQ_on_beta_dP')
+        # print(f'Inlet Temperature: {fs.T}')
+        # print(f'Outlet Temperature: {ps.T}')
+        return ps
+    
+   
+    def calc_on_beta_dT(self, beta, dT):
+        """Calculate the heater duty to meet a vapor fraction and temperature change"""
+        fs = copy.deepcopy(self.fs)
+        ps = copy.deepcopy(self.fs)
+        ps.T = fs.T + dT
+
+        def beta_gap(P):
+            ps.P = P
             return ps.vf - beta
         
-        T_min, T_max = 273, 1000
-        brentq(beta_gap, T_min, T_max, xtol=1e-6) # solve for T using brentq method
-        
-        dQ = (ps.h - fs.h) * fs.flowrate # in J/hr
-        print('##### calc_dQ_on_beta_dP')
-        print(f'Inlet Temperature: {fs.T}')
-        print(f'Outlet Temperature: {ps.T}')
-        return dQ, ps
+        P_min, P_max = 1e4, 1e7
+        brentq(beta_gap, P_min, P_max, xtol=1e-6)
+        return ps
     
-    def calc_beta_on_dQ_dP(self, dQ, dP):
-        """Calculate the vapor fraction for a given pressure drop and heater duty."""
-        ps = self.calc_dT_on_dQ_dP(dQ, dP)[1] # get the product stream object
+    def calc_on_dQ_dT(self, dQ, dT):
+        """Calculate the heater duty to meet a vapor fraction and temperature change"""
+        fs = copy.deepcopy(self.fs)
+        ps = copy.deepcopy(self.fs)
+        ps.T = fs.T + dT
+
+        def enthalpy_gap(P):
+            ps.P = P
+            ps_h_new = ps.h
+            return ps_h_new - (fs.h + dQ / fs.flowrate)
         
-        return ps.vf, ps
+        P_min, P_max = 10, 10000000
+        brentq(enthalpy_gap, P_min, P_max, xtol=1e-6)
+        return ps
+    
+    def calc_on_dQ_beta(self, beta, dQ):
+        """Calculate the heater duty to meet a vapor fraction and temperature change"""
+        fs = copy.deepcopy(self.fs)
+        ps = copy.deepcopy(self.fs)
 
-    def calc_beta_on_dT_dP(self, dT, dP):
-        """Calculate the vapor fraction for a given pressure drop and heater duty."""
-        ps = self.calc_dQ_on_dT_dP(dT, dP)[1]
-        return ps.vf, ps
-
+        def beta_enthalpy_gap(P, T):
+            ps.P, ps.T = P, T
+            beta_new = ps.vf
+            ps_h_new = ps.h
+            return [(beta_new - beta),
+                    (ps_h_new - (fs.h + dQ / fs.flowrate))]
+        
+        P_min, P_max = 10, 10000000
+        T_min, T_max = 273, 1000
+        P_guess, T_guess =10325, 300
+        root(beta_enthalpy_gap, [P_guess, T_guess], method='hybr', bounds=[(P_min, P_max), (T_min, T_max)], xtol=1e-6)
+        
+        return ps
 
 
