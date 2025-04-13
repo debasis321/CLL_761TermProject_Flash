@@ -59,14 +59,14 @@ class Mixer(Q_Flash):
         __init__(fs: PENG_ROBINSON, dT=None, dP=None, beta=None, dQ=None):
             Initializes the Mixer object with the feed stream and optional parameters.
     """
-    def __init__(self, fs1: PENG_ROBINSON, fs1: PENG_ROBINSON):
-        super().__init__(fs, dT=dT, dP=dP, beta=beta, dQ=dQ)
-        # getting ps from super class
-        self.fs = fs
-        self.dH = (self.ps.h - self.fs.h) * self.fs.flowrate
-        self.dP = self.ps.P - self.fs.P
-        self.dT = self.ps.T - self.fs.T
-        # Add any Mixer-specific initialization below if needed
+    # def __init__(self, fs1: PENG_ROBINSON, fs2: PENG_ROBINSON):
+    #     super().__init__(fs1, dT=dT, dP=dP, beta=beta, dQ=dQ)
+    #     # getting ps from super class
+    #     self.fs = fs
+    #     self.dH = (self.ps.h - self.fs.h) * self.fs.flowrate
+    #     self.dP = self.ps.P - self.fs.P
+    #     self.dT = self.ps.T - self.fs.T
+    #     # Add any Mixer-specific initialization below if needed
 
     def basic_info(self):
         """

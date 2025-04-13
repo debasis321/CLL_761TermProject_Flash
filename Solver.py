@@ -17,6 +17,18 @@ class Solver:
     def __init__(self):
         pass
 
+    def plot_cubic_PR(self, A, B):
+        cubic_PR = lambda Z: Z**3 - (1 - B) * Z**2 + (A- 3 * B**2 -2 * B) * Z - (A * B - B**2 - B**3)
+        Z = np.linspace(-0.5, 2, 100)
+        plt.plot(Z, cubic_PR(Z), label='Cubic PR')
+        plt.axhline(0, color='r', linestyle='--', label='y=0')
+        plt.xlabel('Z')
+        plt.ylabel('Cubic PR')
+        plt.title('Cubic PR Equation value vs Z')
+        plt.legend()
+        plt.grid()
+        plt.show()
+
     def Z_solver(self, A, B, tol=1e-8, max_iter=100, solverName='fsolve'):
         """Solve cubic Peng-Robinson EOS for Z-factor."""
         def cubic_PR(Z):
@@ -24,16 +36,7 @@ class Solver:
         
         
         
-        def plot_cubic_PR():
-            Z = np.linspace(-0.5, 2, 100)
-            plt.plot(Z, cubic_PR(Z), label='Cubic PR')
-            plt.axhline(0, color='r', linestyle='--', label='y=0')
-            plt.xlabel('Z')
-            plt.ylabel('Cubic PR')
-            plt.title('Cubic PR Equation')
-            plt.legend()
-            plt.grid()
-            plt.show()
+
 
         
 

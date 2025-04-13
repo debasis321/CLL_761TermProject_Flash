@@ -116,6 +116,7 @@ class PENG_ROBINSON (EOS):
         # Phase composition: intialize with toatal mle raction then update with Flash calculation
         
         self.x_i, self.y_i, self.K, self.vf = self.estimate_xi_yi_K_beta() # initial guess for liquid and vapor compositions
+        self.A, self.B = None, None
         self.Z_l = None
         self.Z_v = None
         self.phi_l = None
@@ -340,6 +341,8 @@ class PENG_ROBINSON (EOS):
         b_mix = np.sum(z * self.b)
         A = a_mix * self.P / (R**2 * self.T**2)
         B = b_mix * self.P / (R * self.T)
+        self.A = A
+        self.B = B
         print(f'A: {A}, B: {B}, a_mix: {a_mix}, b_mix: {b_mix}')
         return A, B, a_mix, b_mix
 
