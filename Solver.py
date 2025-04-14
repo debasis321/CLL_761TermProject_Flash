@@ -19,7 +19,7 @@ class Solver:
 
     def plot_cubic_PR(self, A, B):
         cubic_PR = lambda Z: Z**3 - (1 - B) * Z**2 + (A- 3 * B**2 -2 * B) * Z - (A * B - B**2 - B**3)
-        Z = np.linspace(-0.5, 2, 100)
+        Z = np.linspace(-0.5, 1.2, 100)
         plt.plot(Z, cubic_PR(Z), label='Cubic PR')
         plt.axhline(0, color='r', linestyle='--', label='y=0')
         plt.xlabel('Z')

@@ -1,3 +1,4 @@
+import numpy as np
 from Flash import Q_Flash, PENG_ROBINSON, EOS
 import copy
 
@@ -36,7 +37,7 @@ class Heater(Q_Flash):
         print(f"### Heater Unit Operation ###")
         print(f"Feed Stream: {self.fs.stream.name}")
         print(f"Outlet Stream: {self.ps.stream.name}")
-        print(f"Heat Duty: {round(self.dH/1e3, 2)} kJ/h")
+        print(f"Heat Duty: {np.round(self.dH/1e3, 2)} kJ/h")
         print(f"Pressure Drop: {round(self.dP, 2)} Pa")
         print(f"Temperature Change: {round(self.dT, 2)} K")
         print("#############################")

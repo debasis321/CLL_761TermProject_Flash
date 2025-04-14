@@ -191,6 +191,7 @@ class PENG_ROBINSON (EOS):
         # print(self.k_ij)
         # loading Cp ideal values
         self.idealCp_coeff = self.compData["Cp_ideal"].loc[self.components].to_numpy()
+        self.compHf = self.compData["heatFormation"].loc[self.components].to_numpy()
         # Calculate A, B, parameters
 
     def calc_parameters(self):
@@ -257,49 +258,45 @@ class PENG_ROBINSON (EOS):
         term1 = (Z - 1) * R * T
         B = b_mix * P / (R * T)
         eps = 0
-        # term2 = - ((T * da_mix_dT - a_mix) / (2 * np.sqrt(2) * b_mix + eps)) * np.log((Z + (1 + np.sqrt(2)) * B+ eps) / (Z + (1 - np.sqrt(2)) * B + eps))
-        term2 = - 2.078 * (1 + m) * np.sqrt(alpha) 
+        term2 = ((T * da_mix_dT - a_mix) / (2 * np.sqrt(2) * b_mix + eps)) 
+        # term2 = 2.078 * (1 + m) * np.sqrt(alpha) 
         term3 = np.log((Z + (1 + np.sqrt(2)) * B+ eps) / (Z + (1 - np.sqrt(2)) * B + eps))
         H_res = term1 + term2 * term3
         print('##### Residual Enthalpy Calculation:')
         print(f'Term1: {term1}, Term2: {term2}')
         print((f"Residual Enthalpy: {H_res} J/mol"))
         print('#####')
-        return np.dot(z, H_res)  # J/mol
+        return H_res  # J/mol
 
     def ideal_enthalpy_mixture(self, x_y):
         """Calculate ideal enthalpy for the mixture."""
         z = x_y
         coeff = self.idealCp_coeff
-        T_ref = 273+25  # Reference temperature in K (25 °C)    
-        T = self.T
+        T_ref = 273+ 25  # Reference temperature in K (25 °C)    
+        T = self.T -T_ref
         # ideal_H = coeff[:, 0] + coeff[:, 1] * T + coeff[:, 2] * T**2  + coeff[:, 3] * T**3  + coeff[:, 4] * T**4 + coeff[:, 5] * T**5  
         ideal_H = coeff[:, 0]*T + coeff[:, 1] * T**2/2 + coeff[:, 2] * T**3/3  + coeff[:, 3] * T**4/4  + coeff[:, 4] * T**5/5 + coeff[:, 5] * T**6/6 
-        # A = coeff[:, 0]
-        # B = coeff[:, 1]
-        # C = coeff[:, 2]
-        # D = coeff[:, 3]
-        # E = coeff[:, 4]
 
-        # # # Integral of Cp from T_ref to T
-        # ideal_H = (
-        #     A * (T - T_ref) +
-        #     B * (T**2 - T_ref**2) / 2 +
-        #     C * (T**3 - T_ref**3) / 3 +
-        #     D * (T**4 - T_ref**4) / 4 +
-        #     E * (T**5 - T_ref**5) / 5
-        #             )
-        ideal_H = ideal_H  # Convert to J/mol (HYSYS calculation gives in Cal/mol)
+        ideal_H = ideal_H * 3  # Convert to J/mol (HYSYS calculation gives in Cal/mol)
         print('##### Ideal Enthalpy Calculation:')
         print(f'Ideal Enthalpy: {ideal_H} J/mol')
         print('#####')
         return np.dot(z, ideal_H)  # Mole fraction-weighted sum
-
+    
+    def heatOfformation_mixture(self, x_y):
+        """Calculate heat of formation for the mixture."""
+        z = x_y
+        # Hf = self.compHf['Hf'].to_numpy()
+        hf = self.compHf
+        return np.dot(z, hf)  # J/mol
+    
     def update_stream_enthalpy(self):
         """Calculate stream enthalpy."""
 
-        h_l = self.residual_enthalpy_mixture(self.x_i, self.Z_l) + self.ideal_enthalpy_mixture(self.x_i) if not np.all(self.x_i==0) else 0
-        h_v = self.residual_enthalpy_mixture(self.y_i, self.Z_v) + self.ideal_enthalpy_mixture(self.y_i)if not np.all(self.y_i==0) else 0
+        # h_l = self.residual_enthalpy_mixture(self.x_i, self.Z_l) + self.ideal_enthalpy_mixture(self.x_i) if not np.all(self.x_i==0) else 0
+        # h_v = self.residual_enthalpy_mixture(self.y_i, self.Z_v) + self.ideal_enthalpy_mixture(self.y_i)if not np.all(self.y_i==0) else 0
+        h_l = self.residual_enthalpy_mixture(self.x_i, self.Z_l) + self.heatOfformation_mixture(self.x_i) + self.ideal_enthalpy_mixture(self.x_i) if not np.all(self.x_i==0) else 0
+        h_v = self.residual_enthalpy_mixture(self.y_i, self.Z_v) + self.heatOfformation_mixture(self.y_i) + self.ideal_enthalpy_mixture(self.x_i) if not np.all(self.y_i==0) else 0
         h = h_v * self.vf + h_l * (1 - self.vf)
         self.h_l = h_l
         self.h_v = h_v

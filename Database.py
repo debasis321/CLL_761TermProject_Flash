@@ -3,7 +3,7 @@ import numpy as np
 
 excelPath = "HYSYS_Props.xlsx"
 
-COMP_DB = {"critical": pd.DataFrame(), "kij": pd.DataFrame(), "Cp_ideal": pd.DataFrame()}
+COMP_DB = {"critical": pd.DataFrame(), "kij": pd.DataFrame(), "Cp_ideal": pd.DataFrame(), "heatFormation": pd.DataFrame()}
 
 ## HYSYS Property Data
 COMP_DB["critical"] = pd.read_excel(excelPath, sheet_name="criticalProp")
@@ -57,6 +57,15 @@ COMP_DB['Cp_ideal'].set_index('component', inplace=True)
 COMP_DB['Cp_ideal'].index = COMP_DB['Cp_ideal'].index.str.lower()
 # print(COMP_DB['Cp_ideal'].head())
 
+### Load heat of formtion
+# load the heat of formation data
+COMP_DB['heatFormation'] = pd.read_excel(excelPath, sheet_name="heatFormation")
+# make all column and index as lower case
+COMP_DB['heatFormation'].columns = COMP_DB['heatFormation'].columns.str.lower()
+# set the first column as index
+COMP_DB['heatFormation'].set_index('component', inplace=True)
+# make row names as lower case
+COMP_DB['heatFormation'].index = COMP_DB['heatFormation'].index.str.lower()
 # Constants for Peng-Robinson EOS
 R = 8.314  # J/(mol*K)
 
