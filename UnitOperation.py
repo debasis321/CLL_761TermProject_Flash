@@ -1,4 +1,5 @@
 from Flash import Q_Flash, PENG_ROBINSON, EOS
+import copy
 
 class Heater(Q_Flash):
     """
@@ -22,7 +23,7 @@ class Heater(Q_Flash):
     def __init__(self, fs: PENG_ROBINSON, dT=None, dP=None, beta=None, dQ=None):
         super().__init__(fs, dT=dT, dP=dP, beta=beta, dQ=dQ)
         # getting ps from super class
-        self.fs = fs
+        self.fs = copy.copy(fs)
         self.dH = (self.ps.h - self.fs.h) * self.fs.flowrate
         self.dP = self.ps.P - self.fs.P
         self.dT = self.ps.T - self.fs.T

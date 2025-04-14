@@ -210,10 +210,11 @@ class PENG_ROBINSON (EOS):
     def basic_info(self):
         '''print Basic data of a stream'''
         print(f'### Post Flash Results for Stream:{self.stream.name} ###')
-        print(f'T:, {round(self.T, 2)} K, P: {round(self.P, 2)} Pa') 
-        print(f'VF: {round(self.vf,2)}, xi: {np.round(self.x_i,2)}, yi: {np.round(self.y_i,2)}')
+        print(f'T:, {round(self.T, 2)} K, P: {round(self.P, 2)} Pa, F: {round(self.flowrate, 2)} mol/hr') 
         print(f'Z_l: {round(self.Z_l,4)}, Z_v: {round(self.Z_v,4)}, phi_l: {np.round(self.phi_l,2)}, phi_v: {np.round(self.phi_v,2)}')
-        print(f'h_l: {round(self.h_l,2)} J/mol, h_v: {round(self.h_v,2)} J/mol, h: {round(self.h,2)} J/mol')
+        print(f'K: {np.round(self.K, 4)}')
+        print(f'VF: {round(self.vf,2)}, xi: {np.round(self.x_i,4)}, yi: {np.round(self.y_i,4)}')
+        print(f'h_l: {np.round(self.h_l,2)} J/mol, h_v: {np.round(self.h_v,2)} J/mol, h: {np.round(self.h,2)} J/mol')
         print('###')
 
 
@@ -256,22 +257,39 @@ class PENG_ROBINSON (EOS):
         term1 = (Z - 1) * R * T
         B = b_mix * P / (R * T)
         eps = 0
-        term2 = ((T * da_mix_dT - a_mix) / (2 * np.sqrt(2) * b_mix + eps)) * np.log((Z + (1 + np.sqrt(2)) * B+ eps) / (Z + (1 - np.sqrt(2)) * B + eps))
-        H_res = term1 + term2 
+        # term2 = - ((T * da_mix_dT - a_mix) / (2 * np.sqrt(2) * b_mix + eps)) * np.log((Z + (1 + np.sqrt(2)) * B+ eps) / (Z + (1 - np.sqrt(2)) * B + eps))
+        term2 = - 2.078 * (1 + m) * np.sqrt(alpha) 
+        term3 = np.log((Z + (1 + np.sqrt(2)) * B+ eps) / (Z + (1 - np.sqrt(2)) * B + eps))
+        H_res = term1 + term2 * term3
         print('##### Residual Enthalpy Calculation:')
         print(f'Term1: {term1}, Term2: {term2}')
         print((f"Residual Enthalpy: {H_res} J/mol"))
         print('#####')
-        return H_res  # J/mol
+        return np.dot(z, H_res)  # J/mol
 
     def ideal_enthalpy_mixture(self, x_y):
         """Calculate ideal enthalpy for the mixture."""
         z = x_y
         coeff = self.idealCp_coeff
+        T_ref = 273+25  # Reference temperature in K (25 °C)    
         T = self.T
-        ideal_H = coeff[:, 0] + coeff[:, 1] * T + coeff[:, 2] * T**2 / 2 + coeff[:, 3] * T**3 / 3 + coeff[:, 4] * T**4 / 4 + coeff[:, 5] * T**5 / 5 
-        # ideal_H = coeff[:, 0] + coeff[:, 1] * T + coeff[:, 2] * T**2  + coeff[:, 3] * T**3  + coeff[:, 4] * T**4 
-        ideal_H = ideal_H   # Convert to J/mol (dont know clearly the unit of coeff. just to match with HYSYS)
+        # ideal_H = coeff[:, 0] + coeff[:, 1] * T + coeff[:, 2] * T**2  + coeff[:, 3] * T**3  + coeff[:, 4] * T**4 + coeff[:, 5] * T**5  
+        ideal_H = coeff[:, 0]*T + coeff[:, 1] * T**2/2 + coeff[:, 2] * T**3/3  + coeff[:, 3] * T**4/4  + coeff[:, 4] * T**5/5 + coeff[:, 5] * T**6/6 
+        # A = coeff[:, 0]
+        # B = coeff[:, 1]
+        # C = coeff[:, 2]
+        # D = coeff[:, 3]
+        # E = coeff[:, 4]
+
+        # # # Integral of Cp from T_ref to T
+        # ideal_H = (
+        #     A * (T - T_ref) +
+        #     B * (T**2 - T_ref**2) / 2 +
+        #     C * (T**3 - T_ref**3) / 3 +
+        #     D * (T**4 - T_ref**4) / 4 +
+        #     E * (T**5 - T_ref**5) / 5
+        #             )
+        ideal_H = ideal_H  # Convert to J/mol (HYSYS calculation gives in Cal/mol)
         print('##### Ideal Enthalpy Calculation:')
         print(f'Ideal Enthalpy: {ideal_H} J/mol')
         print('#####')
@@ -505,7 +523,7 @@ class Q_Flash(UOP):
 
     def __init__(self, fs: PENG_ROBINSON, dT=None, dP=None, beta=None, dQ=None):
         """"""
-        self.fs = fs # feed stream object
+        self.fs = copy.copy(fs) # feed stream object
         self.ps = None # product stream object
 
         if dT is not None and dP is not None :
@@ -576,10 +594,11 @@ class Q_Flash(UOP):
         # iteratefor T to match the enthalpy
         def enthalpy_gap(T):
             ps.T = T
+            print(ps.h)
             ps_h_new = ps.h # get the new stream enthalpy
             return ps_h_new - ps_h # return the difference
         
-        T_min, T_max = 273, 1000
+        T_min, T_max = 10, 500
         brentq(enthalpy_gap, T_min, T_max, xtol=1e-6) # solve for T using brentq method
         
         dT = ps.T - fs.T

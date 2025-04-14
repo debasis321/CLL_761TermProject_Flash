@@ -29,7 +29,8 @@ def plot_TXY(stream: Stream,*, P, T_min, T_max, T_step):
 
     # Plot each component's liquid and vapor compositions vs temperature
     # get colur scale
-    colors = cm.plasma(np.linspace(0, 1, Y1.shape[1]))
+    # colors = cm.plasma(np.linspace(0, 1, Y1.shape[1]))
+    colors = ['red', 'green', 'blue', 'orange', 'pink', 'brown']
 
     for i in range(Y1.shape[1]):
         ax.plot(X, Y1[:, i], label=f'Liquid x[{i}]', linestyle='-', alpha=0.7, color=colors[i])
@@ -65,7 +66,8 @@ def plot_PXY(stream: Stream,*, T, P_min, P_max, P_step):
 
     # Plot each component's liquid and vapor compositions vs temperature
     # get colur scale
-    colors = cm.plasma(np.linspace(0, 1, Y1.shape[1]))
+    # colors = cm.plasma(np.linspace(0, 1, Y1.shape[1]))
+    colors = ['red', 'green', 'blue', 'orange', 'pink', 'brown']
     for i in range(Y1.shape[1]):
         ax.plot(X, Y1[:, i], label=f'Liquid x[{i}]', linestyle='-', alpha=0.7, color=colors[i])
         ax.plot(X, Y2[:, i], label=f'Vapor y[{i}]', linestyle='--', alpha=0.7, color=colors[i])
